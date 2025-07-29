@@ -2,8 +2,80 @@ import { Telegraf, Markup } from 'telegraf';
 import { storage } from './storage';
 import type { InsertUser, InsertBet } from '@shared/schema';
 
-// Mock Qwen AI NLP service
+// Real Qwen AI NLP service with fallback
 async function parseNaturalLanguageBet(text: string) {
+  const qwenApiKey = process.env.QWEN_API_KEY;
+  
+  if (qwenApiKey) {
+    try {
+      const prompt = `Parse this betting text and extract structured data in JSON format:
+"${text}"
+
+Expected JSON format:
+{
+  "success": true,
+  "confidence": "0.95",
+  "data": {
+    "asset": "BTC",
+    "condition": "above $70,000",
+    "prediction": "YES",
+    "amount": 100,
+    "deadline": "friday",
+    "originalText": "${text}"
+  }
+}
+
+Rules:
+- Extract bet amount in USDT (minimum 10, maximum 10,000)
+- Identify asset (BTC, ETH, BNB, ADA, SOL, DOT, LINK, MATIC, AVAX, FTM, ONE, NEAR, ATOM)
+- Parse price condition (above/below with price)
+- Determine prediction (YES for above/over, NO for below/under)
+- Extract deadline if mentioned
+- Return error if parsing fails`;
+
+      const response = await fetch('https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${qwenApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'qwen-turbo',
+          input: { prompt },
+          parameters: {
+            temperature: 0.1,
+            max_tokens: 500
+          }
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        const aiOutput = result.output?.text;
+        
+        if (aiOutput) {
+          try {
+            const parsed = JSON.parse(aiOutput);
+            if (parsed.success && parsed.data) {
+              console.log('✅ Qwen AI successfully parsed bet');
+              return parsed;
+            }
+          } catch (e) {
+            console.log('Failed to parse AI JSON response, using fallback');
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Qwen AI error:', error);
+    }
+  }
+
+  // Fallback parser when AI is unavailable
+  console.log('🤖 Using fallback NLP parsing');
+  return fallbackBetParser(text);
+}
+
+function fallbackBetParser(text: string) {
   try {
     const cleanText = text.replace(/^(bet|i want to bet|place a bet)/i, '').trim();
     
@@ -75,7 +147,7 @@ async function parseNaturalLanguageBet(text: string) {
     console.error('NLP parsing error:', error);
     return {
       success: false,
-      error: "Failed to parse your bet. Please try a clearer format like 'bet 100 USDT on BTC above 70k by Friday'"
+      error: "Error processing your bet. Please try rephrasing it."
     };
   }
 }
@@ -103,12 +175,14 @@ export class TelegramBotService {
   private isRunning = false;
 
   constructor() {
-    // Initialize with mock token for development
-    const token = process.env.TG_BOT_TOKEN || 'mock-telegram-bot-token';
+    const token = process.env.TG_BOT_TOKEN;
     
-    if (token !== 'mock-telegram-bot-token') {
+    if (token) {
+      console.log('🤖 Initializing Telegram bot with production API...');
       this.bot = new Telegraf(token);
       this.setupHandlers();
+    } else {
+      console.log('🤖 No Telegram bot token provided - running in mock mode');
     }
   }
 
@@ -177,19 +251,21 @@ Ready to start predicting? 🚀
           { columns: 2 }
         );
 
-        await ctx.reply(
-          `🎯 **Parsed Bet:**\n` +
-          `Asset: ${parsed.data.asset}\n` +
-          `Condition: ${parsed.data.condition}\n` +
-          `Prediction: ${parsed.data.prediction}\n` +
-          `Amount: ${parsed.data.amount} USDT\n` +
-          `Deadline: ${parsed.data.deadline}\n\n` +
-          `Select blockchain:`,
-          {
-            parse_mode: 'Markdown',
-            ...keyboard
-          }
-        );
+        if (parsed.data) {
+          await ctx.reply(
+            `🎯 **Parsed Bet:**\n` +
+            `Asset: ${parsed.data.asset}\n` +
+            `Condition: ${parsed.data.condition}\n` +
+            `Prediction: ${parsed.data.prediction}\n` +
+            `Amount: ${parsed.data.amount} USDT\n` +
+            `Deadline: ${parsed.data.deadline}\n\n` +
+            `Select blockchain:`,
+            {
+              parse_mode: 'Markdown',
+              ...keyboard
+            }
+          );
+        }
       } catch (error) {
         console.error('NLP parsing error:', error);
         ctx.reply('❌ Failed to parse your bet. Please try again or use /predict for guided betting.');
@@ -334,7 +410,7 @@ Ready to start predicting? 🚀
           message += `${index + 1}. **${market.title}**\n`;
           message += `   Chain: ${market.chainId}\n`;
           message += `   Expires: ${market.expiryDate.toLocaleDateString()}\n`;
-          message += `   Pool: ${market.yesPool + market.noPool} USDT\n\n`;
+          message += `   Pool: ${(market.yesPool || 0) + (market.noPool || 0)} USDT\n\n`;
         });
 
         if (markets.length > 10) {
@@ -391,7 +467,7 @@ Ready to start predicting? 🚀
         message += `📊 **Summary:**\n`;
         message += `Total Bet: ${totalBetAmount} USDT\n`;
         message += `Active Bets: ${userBets.length}\n`;
-        message += `Win Rate: ${user.totalBets > 0 ? Math.round((user.totalWon || 0) / (user.totalBets || 1) * 100) : 0}%`;
+        message += `Win Rate: ${(user.totalBets || 0) > 0 ? Math.round((user.totalWon || 0) / ((user.totalBets || 1)) * 100) : 0}%`;
 
         await ctx.replyWithMarkdown(message);
       } catch (error) {
@@ -409,7 +485,7 @@ Ready to start predicting? 🚀
         
         leaderboard.forEach((user, index) => {
           const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
-          const winRate = user.totalBets > 0 ? ((user.totalWon || 0) / (user.totalBets || 1) * 100).toFixed(1) : '0.0';
+          const winRate = (user.totalBets || 0) > 0 ? ((user.totalWon || 0) / ((user.totalBets || 1)) * 100).toFixed(1) : '0.0';
           message += `${medal} **${user.username}**\n`;
           message += `   Wins: ${user.totalWon || 0} USDT | Bets: ${user.totalBets || 0} | Rate: ${winRate}%\n\n`;
         });
