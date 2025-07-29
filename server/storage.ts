@@ -7,25 +7,25 @@ export interface IStorage {
   getUserByTelegramId(telegramId: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<User>): Promise<User | undefined>;
-  
+
   // Markets
   getMarket(id: string): Promise<Market | undefined>;
   getActiveMarkets(): Promise<Market[]>;
   getMarketsByChain(chainId: string): Promise<Market[]>;
   createMarket(market: InsertMarket): Promise<Market>;
   updateMarket(id: string, updates: Partial<Market>): Promise<Market | undefined>;
-  
+
   // Bets
   getBet(id: string): Promise<Bet | undefined>;
   getBetsByUser(userId: string): Promise<Bet[]>;
   getBetsByMarket(marketId: string): Promise<Bet[]>;
   createBet(bet: InsertBet): Promise<Bet>;
   updateBet(id: string, updates: Partial<Bet>): Promise<Bet | undefined>;
-  
+
   // Referrals
   getReferralsByUser(userId: string): Promise<Referral[]>;
   createReferral(referral: InsertReferral): Promise<Referral>;
-  
+
   // Leaderboard
   getLeaderboard(limit?: number): Promise<User[]>;
 }
@@ -194,7 +194,7 @@ export class MemStorage implements IStorage {
   async updateUser(id: string, updates: Partial<User>): Promise<User | undefined> {
     const user = this.users.get(id);
     if (!user) return undefined;
-    
+
     const updatedUser = { ...user, ...updates };
     this.users.set(id, updatedUser);
     return updatedUser;
@@ -232,7 +232,7 @@ export class MemStorage implements IStorage {
   async updateMarket(id: string, updates: Partial<Market>): Promise<Market | undefined> {
     const market = this.markets.get(id);
     if (!market) return undefined;
-    
+
     const updatedMarket = { ...market, ...updates };
     this.markets.set(id, updatedMarket);
     return updatedMarket;
@@ -267,7 +267,7 @@ export class MemStorage implements IStorage {
   async updateBet(id: string, updates: Partial<Bet>): Promise<Bet | undefined> {
     const bet = this.bets.get(id);
     if (!bet) return undefined;
-    
+
     const updatedBet = { ...bet, ...updates };
     this.bets.set(id, updatedBet);
     return updatedBet;

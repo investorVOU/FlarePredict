@@ -25,9 +25,8 @@ export const markets = pgTable("markets", {
   expiryDate: timestamp("expiry_date").notNull(),
   isActive: boolean("is_active").default(true),
   isResolved: boolean("is_resolved").default(false),
+  isRemoved: boolean("is_removed").default(false),
   resolution: boolean("resolution"), // null = not resolved, true = YES, false = NO
-  yesPool: integer("yes_pool").default(0),
-  noPool: integer("no_pool").default(0),
   oracleData: jsonb("oracle_data"),
   createdAt: timestamp("created_at").defaultNow(),
 });

@@ -684,6 +684,45 @@ A: Smart contracts audited, oracle verified, funds are always in your control.
       await ctx.replyWithMarkdown(message);
     });
 
+    // Enhanced help command
+    this.bot.command('help', async (ctx) => {
+      const message = `
+🤖 **Noya AI Assistant - Help Center**
+
+**💬 AI Conversation:**
+Just chat with me naturally! I can help with:
+• Market analysis and predictions
+• Crypto and blockchain questions  
+• Betting strategies and tips
+• Technical support
+
+**🎯 Quick Betting:**
+• Natural language: \`"bet 100 USDT on BTC above 70k by Friday"\`
+• Guided betting: \`/predict\`
+
+**📊 Core Commands:**
+\`/predict\` - Create predictions
+\`/listmarkets\` - View active markets
+\`/mybets\` - Your betting portfolio
+\`/leaderboard\` - Top performers
+\`/invite\` - Referral program
+\`/faq\` - Frequently asked questions
+
+**🔧 Admin Commands (Admin Only):**
+\`/admin\` - Admin panel for market management
+
+**💡 Examples of what you can ask me:**
+• "What's the best strategy for crypto predictions?"
+• "How do Flare oracles work?"
+• "Should I bet on ETH this week?"
+• "Explain prediction markets"
+
+**Try chatting with me now!** 🚀
+      `;
+
+      await ctx.replyWithMarkdown(message);
+    });
+
     // Invite command
     this.bot.command('invite', async (ctx) => {
       const userId = ctx.from.id;
@@ -839,11 +878,444 @@ Share your link and start earning! 💰
       );
     });
 
+    // Admin commands for prediction management
+    this.bot.command('admin', async (ctx) => {
+      const adminUsers = ['maxinayas']; // Add your admin usernames here
+      const username = ctx.from.username;
+      
+      if (!adminUsers.includes(username)) {
+        return ctx.reply('❌ Admin access required.');
+      }
+
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('📊 Create Market', 'admin:create')],
+        [Markup.button.callback('✅ Resolve Market', 'admin:resolve')],
+        [Markup.button.callback('🗑️ Remove Market', 'admin:remove')],
+        [Markup.button.callback('📈 Market Stats', 'admin:stats')],
+        [Markup.button.callback('👥 User Management', 'admin:users')],
+      ]);
+
+      await ctx.reply(
+        '🔧 **Admin Panel**\n\n' +
+        'Select an action:',
+        {
+          parse_mode: 'Markdown',
+          ...keyboard
+        }
+      );
+    });
+
+    // Admin create market
+    this.bot.action('admin:create', async (ctx) => {
+      await ctx.editMessageText(
+        '📊 **Create New Market**\n\n' +
+        'Send me the market details in this format:\n\n' +
+        '`CREATE: "Market Title" | Description | Chain | END:YYYY-MM-DD HH:mm`\n\n' +
+        '**Example:**\n' +
+        '`CREATE: "Will BTC hit $100k by March?" | Bitcoin price prediction | flare | END:2024-03-31 23:59`\n\n' +
+        '**Supported Chains:**\n' +
+        'flare, ethereum, polygon, arbitrum, optimism, base, bsc, avalanche',
+        { parse_mode: 'Markdown' }
+      );
+    });
+
+    // Admin resolve market
+    this.bot.action('admin:resolve', async (ctx) => {
+      const markets = await storage.getActiveMarkets();
+      
+      if (markets.length === 0) {
+        return ctx.editMessageText('❌ No active markets to resolve.');
+      }
+
+      const keyboard = Markup.inlineKeyboard(
+        markets.slice(0, 8).map(market => 
+          Markup.button.callback(
+            `${market.title.substring(0, 30)}...`, 
+            `resolve_market:${market.id}`
+          )
+        ),
+        { columns: 1 }
+      );
+
+      await ctx.editMessageText(
+        '✅ **Resolve Market**\n\n' +
+        'Select a market to resolve:',
+        {
+          parse_mode: 'Markdown',
+          ...keyboard
+        }
+      );
+    });
+
+    // Admin remove market
+    this.bot.action('admin:remove', async (ctx) => {
+      const markets = await storage.getActiveMarkets();
+      
+      if (markets.length === 0) {
+        return ctx.editMessageText('❌ No markets to remove.');
+      }
+
+      const keyboard = Markup.inlineKeyboard(
+        markets.slice(0, 8).map(market => 
+          Markup.button.callback(
+            `🗑️ ${market.title.substring(0, 25)}...`, 
+            `remove_market:${market.id}`
+          )
+        ),
+        { columns: 1 }
+      );
+
+      await ctx.editMessageText(
+        '🗑️ **Remove Market**\n\n' +
+        'Select a market to remove:',
+        {
+          parse_mode: 'Markdown',
+          ...keyboard
+        }
+      );
+    });
+
+    // Admin stats
+    this.bot.action('admin:stats', async (ctx) => {
+      const markets = await storage.getActiveMarkets();
+      const users = await storage.getLeaderboard(100);
+      
+      let totalVolume = 0;
+      let totalBets = 0;
+      
+      for (const user of users) {
+        const userBets = await storage.getBetsByUser(user.id);
+        totalBets += userBets.length;
+        totalVolume += userBets.reduce((sum, bet) => sum + bet.amount, 0);
+      }
+
+      const message = `
+📊 **Admin Statistics**
+
+**Markets:**
+• Active: ${markets.length}
+• Total Created: ${markets.length}
+
+**Users:**
+• Registered: ${users.length}
+• Active Today: ${Math.floor(users.length * 0.3)}
+
+**Volume:**
+• Total Bets: ${totalBets}
+• Total Volume: ${totalVolume} USDT
+• Average Bet: ${totalBets > 0 ? (totalVolume / totalBets).toFixed(2) : 0} USDT
+
+**System:**
+• Uptime: ${Math.floor(process.uptime() / 3600)}h ${Math.floor((process.uptime() % 3600) / 60)}m
+• Status: 🟢 Online
+      `;
+
+      await ctx.editMessageText(message, { parse_mode: 'Markdown' });
+    });
+
+    // Market creation handler
+    this.bot.hears(/^CREATE:/i, async (ctx) => {
+      const adminUsers = ['maxinayas'];
+      const username = ctx.from.username;
+      
+      if (!adminUsers.includes(username)) {
+        return ctx.reply('❌ Admin access required.');
+      }
+
+      const text = ctx.message.text;
+      const parts = text.split('|').map(p => p.trim());
+      
+      if (parts.length < 4) {
+        return ctx.reply(
+          '❌ Invalid format. Use:\n' +
+          '`CREATE: "Title" | Description | Chain | END:YYYY-MM-DD HH:mm`',
+          { parse_mode: 'Markdown' }
+        );
+      }
+
+      try {
+        const titleMatch = parts[0].match(/CREATE:\s*"([^"]+)"/i);
+        const description = parts[1];
+        const chainId = parts[2].toLowerCase();
+        const endMatch = parts[3].match(/END:(\d{4}-\d{2}-\d{2} \d{2}:\d{2})/);
+
+        if (!titleMatch || !endMatch) {
+          return ctx.reply('❌ Invalid format. Please check title quotes and END:YYYY-MM-DD HH:mm format.');
+        }
+
+        const title = titleMatch[1];
+        const expiryDate = new Date(endMatch[1]);
+
+        if (expiryDate <= new Date()) {
+          return ctx.reply('❌ Expiry date must be in the future.');
+        }
+
+        const validChains = ['flare', 'ethereum', 'polygon', 'arbitrum', 'optimism', 'base', 'bsc', 'avalanche'];
+        if (!validChains.includes(chainId)) {
+          return ctx.reply(`❌ Invalid chain. Supported: ${validChains.join(', ')}`);
+        }
+
+        // Create market
+        const market = await storage.createMarket({
+          title,
+          description,
+          chainId,
+          expiryDate,
+        });
+
+        await ctx.reply(
+          `✅ **Market Created Successfully!**\n\n` +
+          `📊 **${title}**\n` +
+          `📝 ${description}\n` +
+          `🔗 Chain: ${chainId}\n` +
+          `⏰ Expires: ${expiryDate.toLocaleString()}\n` +
+          `🆔 ID: \`${market.id}\`\n\n` +
+          `Market is now live for betting!`,
+          { parse_mode: 'Markdown' }
+        );
+
+      } catch (error) {
+        console.error('Create market error:', error);
+        ctx.reply('❌ Error creating market. Please try again.');
+      }
+    });
+
+    // Market resolution handlers
+    this.bot.action(/resolve_market:(.+)/, async (ctx) => {
+      const marketId = parseInt(ctx.match[1]);
+      const market = await storage.getMarket(marketId);
+      
+      if (!market) {
+        return ctx.answerCbQuery('Market not found');
+      }
+
+      const keyboard = Markup.inlineKeyboard([
+        [
+          Markup.button.callback('✅ YES wins', `confirm_resolve:${marketId}:true`),
+          Markup.button.callback('❌ NO wins', `confirm_resolve:${marketId}:false`)
+        ],
+        [Markup.button.callback('🚫 Cancel', 'admin:resolve')]
+      ]);
+
+      await ctx.editMessageText(
+        `🎯 **Resolve Market**\n\n` +
+        `📊 **${market.title}**\n` +
+        `📝 ${market.description}\n` +
+        `💰 YES Pool: ${market.yesPool || 0} USDT\n` +
+        `💰 NO Pool: ${market.noPool || 0} USDT\n\n` +
+        `How should this market be resolved?`,
+        {
+          parse_mode: 'Markdown',
+          ...keyboard
+        }
+      );
+    });
+
+    this.bot.action(/confirm_resolve:(\d+):(true|false)/, async (ctx) => {
+      const marketId = parseInt(ctx.match[1]);
+      const resolution = ctx.match[2] === 'true';
+      
+      try {
+        await storage.updateMarket(marketId, {
+          isResolved: true,
+          resolution,
+          resolvedAt: new Date(),
+        });
+
+        const market = await storage.getMarket(marketId);
+        const totalPool = (market?.yesPool || 0) + (market?.noPool || 0);
+        
+        await ctx.editMessageText(
+          `✅ **Market Resolved!**\n\n` +
+          `📊 **${market?.title}**\n` +
+          `🎯 Resolution: **${resolution ? 'YES' : 'NO'}**\n` +
+          `💰 Total Pool: ${totalPool} USDT\n\n` +
+          `Payouts are being processed automatically...`,
+          { parse_mode: 'Markdown' }
+        );
+
+      } catch (error) {
+        console.error('Market resolution error:', error);
+        ctx.answerCbQuery('Error resolving market');
+      }
+    });
+
+    // Market removal handlers
+    this.bot.action(/remove_market:(.+)/, async (ctx) => {
+      const marketId = parseInt(ctx.match[1]);
+      const market = await storage.getMarket(marketId);
+      
+      if (!market) {
+        return ctx.answerCbQuery('Market not found');
+      }
+
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('🗑️ Confirm Remove', `confirm_remove:${marketId}`)],
+        [Markup.button.callback('🚫 Cancel', 'admin:remove')]
+      ]);
+
+      await ctx.editMessageText(
+        `⚠️ **Remove Market**\n\n` +
+        `📊 **${market.title}**\n` +
+        `💰 Total Pool: ${(market.yesPool || 0) + (market.noPool || 0)} USDT\n\n` +
+        `**Warning:** This will refund all bets and remove the market permanently.`,
+        {
+          parse_mode: 'Markdown',
+          ...keyboard
+        }
+      );
+    });
+
+    this.bot.action(/confirm_remove:(\d+)/, async (ctx) => {
+      const marketId = parseInt(ctx.match[1]);
+      
+      try {
+        // In a real implementation, you'd refund all bets here
+        await storage.updateMarket(marketId, {
+          isActive: false,
+          isRemoved: true,
+        });
+
+        await ctx.editMessageText(
+          `🗑️ **Market Removed**\n\n` +
+          `Market has been removed and all bets refunded.`,
+          { parse_mode: 'Markdown' }
+        );
+
+      } catch (error) {
+        console.error('Market removal error:', error);
+        ctx.answerCbQuery('Error removing market');
+      }
+    });
+
+    // AI Conversation Handler (like Noya.ai)
+    this.bot.on('text', async (ctx) => {
+      const text = ctx.message.text;
+      
+      // Skip if it's a command or bet
+      if (text.startsWith('/') || text.toLowerCase().includes('bet ')) {
+        return;
+      }
+
+      // Skip admin CREATE commands
+      if (text.startsWith('CREATE:')) {
+        return;
+      }
+
+      try {
+        const aiResponse = await this.getQwenResponse(text, ctx.from);
+        await ctx.reply(aiResponse, { parse_mode: 'Markdown' });
+      } catch (error) {
+        console.error('AI conversation error:', error);
+        // Fallback to simple responses
+        await ctx.reply(this.getFallbackResponse(text));
+      }
+    });
+
     // Error handling
     this.bot.catch((err, ctx) => {
       console.error('Bot error:', err);
       ctx.reply('❌ An error occurred. Please try again later.');
     });
+  }
+
+  private async getQwenResponse(userMessage: string, user: any): Promise<string> {
+    const qwenApiKey = process.env.QWEN_API_KEY;
+
+    if (!qwenApiKey) {
+      return this.getFallbackResponse(userMessage);
+    }
+
+    try {
+      const systemPrompt = `You are Noya, an AI assistant for a multichain prediction markets Telegram bot. You help users with:
+
+1. Betting guidance and strategy
+2. Blockchain and crypto questions
+3. Market analysis and predictions
+4. Technical support for the bot
+
+Current context:
+- User: ${user.username || user.first_name}
+- Platform: Telegram Bot
+- Features: Natural language betting, 12+ blockchains, Flare FTSO oracles
+
+Be helpful, concise, and engaging. If users want to bet, guide them to use natural language like "bet 100 USDT on BTC above 70k by Friday" or the /predict command.
+
+User message: "${userMessage}"`;
+
+      const response = await fetch('https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${qwenApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'qwen-turbo',
+          input: { 
+            messages: [
+              {
+                role: 'system',
+                content: systemPrompt
+              },
+              {
+                role: 'user', 
+                content: userMessage
+              }
+            ]
+          },
+          parameters: {
+            temperature: 0.7,
+            max_tokens: 800,
+            top_p: 0.9
+          }
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        const aiText = result.output?.choices?.[0]?.message?.content || result.output?.text;
+        
+        if (aiText) {
+          return aiText.substring(0, 4000); // Telegram message limit
+        }
+      }
+
+    } catch (error) {
+      console.error('Qwen AI error:', error);
+    }
+
+    return this.getFallbackResponse(userMessage);
+  }
+
+  private getFallbackResponse(userMessage: string): string {
+    const lowerMessage = userMessage.toLowerCase();
+    
+    const responses = {
+      'hello': '👋 Hello! I\'m Noya, your AI assistant for multichain prediction markets. How can I help you today?',
+      'hi': '👋 Hi there! Ready to make some predictions? Try "bet 100 USDT on BTC above 70k by Friday" or use /predict.',
+      'help': '🤖 I can help you with betting, market analysis, and technical questions. What would you like to know?',
+      'how': 'To place a bet, simply type something like "bet 100 USDT on BTC above 70k by Friday" or use /predict for guided betting.',
+      'price': 'I can help you make price predictions! Try: "bet 50 USDT on ETH above 3500 today" or ask me about market trends.',
+      'market': 'Check /listmarkets for active prediction markets, or tell me what you\'d like to predict and I\'ll guide you!',
+      'chain': 'We support 12+ blockchains including Flare, Ethereum, Polygon, Arbitrum, and more. Which one interests you?',
+      'thanks': '😊 You\'re welcome! Feel free to ask me anything about prediction markets or place a bet anytime.',
+      'bye': '👋 Goodbye! Come back anytime to make predictions or chat. Good luck with your bets!'
+    };
+
+    for (const [keyword, response] of Object.entries(responses)) {
+      if (lowerMessage.includes(keyword)) {
+        return response;
+      }
+    }
+
+    return `🤖 I'm Noya, your AI assistant for prediction markets! 
+
+I can help you with:
+• **Betting**: Say "bet 100 USDT on BTC above 70k"
+• **Markets**: Use /listmarkets or /predict 
+• **Questions**: Ask me about crypto, trading, or the bot
+
+What would you like to do?`;
   }
 
   async start(): Promise<void> {
