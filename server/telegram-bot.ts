@@ -509,20 +509,33 @@ Ready to start predicting? 🚀
   async start(): Promise<void> {
     if (!this.bot) {
       console.log('🤖 Telegram bot running in MOCK mode (no token provided)');
+      console.log('📝 Add TG_BOT_TOKEN to environment to enable live bot');
       this.isRunning = true;
       return;
     }
 
     try {
+      console.log('🤖 Starting Telegram bot...');
       await this.bot.launch();
       this.isRunning = true;
-      console.log('🤖 Telegram bot is running...');
+      console.log('✅ Telegram bot successfully started and listening for messages');
+      
+      // Test bot info
+      try {
+        const botInfo = await this.bot.telegram.getMe();
+        console.log(`🤖 Bot info: @${botInfo.username} (${botInfo.first_name})`);
+      } catch (e) {
+        console.log('⚠️  Could not fetch bot info, but bot is running');
+      }
       
       // Graceful stop
       process.once('SIGINT', () => this.bot?.stop('SIGINT'));
       process.once('SIGTERM', () => this.bot?.stop('SIGTERM'));
     } catch (error) {
-      console.error('Failed to launch Telegram bot:', error);
+      console.error('❌ Failed to launch Telegram bot:', error);
+      console.log('💡 Make sure TG_BOT_TOKEN is valid and bot is not already running');
+      // Still mark as running in mock mode for the rest of the app to work
+      this.isRunning = true;
     }
   }
 
