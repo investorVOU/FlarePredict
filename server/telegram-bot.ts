@@ -528,6 +528,260 @@ Ready to start predicting? 🚀
       }
     });
 
+    // Predict command - guided betting
+    this.bot.command('predict', async (ctx) => {
+      const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('📈 BTC Price', 'predict:btc')],
+        [Markup.button.callback('📊 ETH Price', 'predict:eth')],
+        [Markup.button.callback('⭐ Custom Asset', 'predict:custom')],
+      ]);
+
+      await ctx.reply(
+        '🎯 **Create a Prediction**\n\n' +
+        'Choose an asset to predict, or type a natural language bet like:\n' +
+        '`"bet 100 USDT on BTC above 70k by Friday"`',
+        {
+          parse_mode: 'Markdown',
+          ...keyboard
+        }
+      );
+    });
+
+    // How to command
+    this.bot.command('howto', async (ctx) => {
+      const message = `
+📚 **How to Use MultiChain Prediction Markets**
+
+**1. Natural Language Betting:**
+Just type: \`"bet 100 USDT on BTC above 70k by Friday"\`
+The AI will parse your bet and guide you through the process.
+
+**2. Guided Betting:**
+Use \`/predict\` for step-by-step bet creation.
+
+**3. Choose Your Chain:**
+Select from 12+ blockchains including Flare, Ethereum, Polygon, Arbitrum, and more.
+
+**4. Wallet Connection:**
+Connect via WalletConnect (MetaMask, Bifrost, Rabby supported).
+
+**5. Track Performance:**
+• \`/mybets\` - Your betting portfolio
+• \`/leaderboard\` - Top performers
+• \`/listmarkets\` - Active markets
+
+**6. Earn Rewards:**
+• Refer friends with \`/invite\`
+• Win streak bonuses
+• NFT badges for milestones
+
+**Supported Bet Types:**
+• Price predictions (BTC > $70k)
+• Time-based outcomes (by Friday)
+• Custom markets (admin created)
+
+**Payment:**
+All bets in USDT, automatic payouts on resolution.
+
+Ready to start? Try: \`"bet 50 USDT on ETH above 3500 today"\`
+      `;
+
+      await ctx.replyWithMarkdown(message);
+    });
+
+    // FAQ command
+    this.bot.command('faq', async (ctx) => {
+      const message = `
+❓ **Frequently Asked Questions**
+
+**Q: Which blockchains are supported?**
+A: Flare, Ethereum, Polygon, Arbitrum, Optimism, Base, BSC, Avalanche, Fantom, zkSync, Scroll, Linea.
+
+**Q: How do I connect my wallet?**
+A: We use WalletConnect v2. Just click confirm when placing a bet and scan the QR code.
+
+**Q: Are transactions gasless?**
+A: Yes! We use meta-transactions for seamless betting experience.
+
+**Q: How are markets resolved?**
+A: Flare FTSO oracles for Flare network, Chainlink for other chains. Fully decentralized.
+
+**Q: What's the minimum bet?**
+A: 10 USDT minimum, 10,000 USDT maximum per bet.
+
+**Q: When do I get paid?**
+A: Automatic payouts within 1 hour of market resolution.
+
+**Q: How do referrals work?**
+A: Earn 5% of friends' winnings forever. They get 10 USDT welcome bonus.
+
+**Q: Is there a daily limit?**
+A: No daily betting limits. Plus daily free prediction faucet for engagement.
+
+**Q: How secure is it?**
+A: Smart contracts audited, oracle verified, funds are always in your control.
+
+**Need more help?** Type your question and our AI will try to help!
+      `;
+
+      await ctx.replyWithMarkdown(message);
+    });
+
+    // Invite command
+    this.bot.command('invite', async (ctx) => {
+      const userId = ctx.from.id;
+      const username = ctx.from.username || ctx.from.first_name;
+      const referralCode = `ref_${userId}`;
+      const referralLink = `https://t.me/your_bot_username?start=${referralCode}`;
+
+      const message = `
+🎁 **Referral Program**
+
+Invite friends and earn **5%** of their winnings!
+
+**Your Referral Link:**
+\`${referralLink}\`
+
+**How it works:**
+• Friend joins using your link
+• They place their first bet
+• You earn 5% of their winnings forever
+• They get a 10 USDT welcome bonus
+
+**Your Stats:**
+• Referrals: 0
+• Bonus Earned: 0 USDT
+
+Share your link and start earning! 💰
+      `;
+
+      const keyboard = Markup.inlineKeyboard([
+        Markup.button.url('📤 Share Link', `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent('Join the best multichain prediction market bot!')}`),
+      ]);
+
+      await ctx.reply(message, {
+        parse_mode: 'Markdown',
+        ...keyboard
+      });
+    });
+
+    // Prediction asset selection callbacks
+    this.bot.action('predict:btc', async (ctx) => {
+      const keyboard = Markup.inlineKeyboard([
+        [
+          Markup.button.callback('📈 Above $70k', 'bet:btc:above:70000'),
+          Markup.button.callback('📉 Below $65k', 'bet:btc:below:65000')
+        ],
+        [Markup.button.callback('🎯 Custom Price', 'bet:btc:custom')]
+      ]);
+
+      await ctx.editMessageText(
+        '₿ **Bitcoin Price Prediction**\n\n' +
+        'Current BTC: ~$67,420\n\n' +
+        'Choose your prediction:',
+        {
+          parse_mode: 'Markdown',
+          ...keyboard
+        }
+      );
+    });
+
+    this.bot.action('predict:eth', async (ctx) => {
+      const keyboard = Markup.inlineKeyboard([
+        [
+          Markup.button.callback('📈 Above $3500', 'bet:eth:above:3500'),
+          Markup.button.callback('📉 Below $3200', 'bet:eth:below:3200')
+        ],
+        [Markup.button.callback('🎯 Custom Price', 'bet:eth:custom')]
+      ]);
+
+      await ctx.editMessageText(
+        '⟠ **Ethereum Price Prediction**\n\n' +
+        'Current ETH: ~$3,340\n\n' +
+        'Choose your prediction:',
+        {
+          parse_mode: 'Markdown',
+          ...keyboard
+        }
+      );
+    });
+
+    // Bet amount selection for guided betting
+    this.bot.action(/bet:(\w+):(above|below):(\d+)/, async (ctx) => {
+      const [, asset, direction, price] = ctx.match;
+      
+      const keyboard = Markup.inlineKeyboard([
+        [
+          Markup.button.callback('💰 50 USDT', `amount:${asset}:${direction}:${price}:50`),
+          Markup.button.callback('💰 100 USDT', `amount:${asset}:${direction}:${price}:100`)
+        ],
+        [
+          Markup.button.callback('💰 250 USDT', `amount:${asset}:${direction}:${price}:250`),
+          Markup.button.callback('💰 500 USDT', `amount:${asset}:${direction}:${price}:500`)
+        ],
+        [Markup.button.callback('🎯 Custom Amount', `amount:${asset}:${direction}:${price}:custom`)]
+      ]);
+
+      await ctx.editMessageText(
+        `💰 **Choose Bet Amount**\n\n` +
+        `Prediction: ${asset.toUpperCase()} ${direction} $${price}\n\n` +
+        `Select amount to bet:`,
+        {
+          parse_mode: 'Markdown',
+          ...keyboard
+        }
+      );
+    });
+
+    // Final bet confirmation with chain selection for guided betting
+    this.bot.action(/amount:(\w+):(above|below):(\d+):(\d+)/, async (ctx) => {
+      const [, asset, direction, price, amount] = ctx.match;
+      
+      const chains = getChainOptions();
+      
+      const betData = {
+        asset: asset.toUpperCase(),
+        condition: `${direction} $${price}`,
+        prediction: direction === 'above' ? 'YES' : 'NO',
+        amount: parseInt(amount),
+        deadline: 'end of day'
+      };
+
+      // Store bet data temporarily 
+      const betId = `guided_bet_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+      if (!global.tempBetStorage) {
+        global.tempBetStorage = new Map();
+      }
+      global.tempBetStorage.set(betId, betData);
+      
+      // Clean up old entries (older than 10 minutes)
+      setTimeout(() => {
+        global.tempBetStorage?.delete(betId);
+      }, 10 * 60 * 1000);
+
+      const keyboard = Markup.inlineKeyboard(
+        chains.map(chain => Markup.button.callback(
+          `${chain.emoji} ${chain.name}`, 
+          `chain:${chain.id}:${betId}`
+        )),
+        { columns: 2 }
+      );
+
+      await ctx.editMessageText(
+        `🎯 **Confirm Your Bet:**\n` +
+        `Asset: ${betData.asset}\n` +
+        `Condition: ${betData.condition}\n` +
+        `Prediction: ${betData.prediction}\n` +
+        `Amount: ${betData.amount} USDT\n` +
+        `Deadline: ${betData.deadline}\n\n` +
+        `Select blockchain:`,
+        {
+          parse_mode: 'Markdown',
+          ...keyboard
+        }
+      );
+    });
+
     // Error handling
     this.bot.catch((err, ctx) => {
       console.error('Bot error:', err);
