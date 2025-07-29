@@ -97,16 +97,62 @@ export class WalletConnectService {
       throw new Error('WalletConnect not initialized');
     }
 
-    const result = await this.signClient.request({
-      topic: session.topic,
-      chainId: `eip155:${transaction.chainId}`,
-      request: {
-        method: 'eth_sendTransaction',
-        params: [transaction],
-      },
-    });
+    try {
+      console.log(`📝 Sending transaction via WalletConnect:`, {
+        to: transaction.to,
+        value: transaction.value,
+        chainId: transaction.chainId
+      });
 
-    return result as string;
+      const result = await this.signClient.request({
+        topic: session.topic,
+        chainId: `eip155:${transaction.chainId}`,
+        request: {
+          method: 'eth_sendTransaction',
+          params: [transaction],
+        },
+      });
+
+      console.log(`✅ Transaction sent successfully: ${result}`);
+      return result as string;
+    } catch (error) {
+      console.error('❌ Transaction failed:', error);
+      throw new Error(`Transaction failed: ${error.message}`);
+    }
+  }
+
+  async signTransaction(session: WalletConnectSession, transaction: any): Promise<string> {
+    if (!this.signClient) {
+      throw new Error('WalletConnect not initialized');
+    }
+
+    try {
+      const result = await this.signClient.request({
+        topic: session.topic,
+        chainId: `eip155:${transaction.chainId}`,
+        request: {
+          method: 'eth_signTransaction',
+          params: [transaction],
+        },
+      });
+
+      return result as string;
+    } catch (error) {
+      console.error('❌ Transaction signing failed:', error);
+      throw new Error(`Signing failed: ${error.message}`);
+    }
+  }
+
+  async getConnectedAccounts(session: WalletConnectSession): Promise<string[]> {
+    if (!session || !session.namespaces.eip155) {
+      throw new Error('Invalid session or namespace');
+    }
+
+    const accounts = session.namespaces.eip155.accounts.map(account => 
+      account.split(':')[2] // Extract address from eip155:1:0x...
+    );
+
+    return accounts;
   }
 
   async signMessage(session: WalletConnectSession, message: string): Promise<string> {

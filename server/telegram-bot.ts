@@ -393,13 +393,13 @@ Ready to start predicting? 🚀
 
         // Import WalletConnect service
         const { walletConnectService } = await import('./walletconnect');
-        
+
         await ctx.editMessageText('🔗 Initializing WalletConnect v2...\n\nPlease wait...');
 
         try {
           // Create wallet connection session
           const { uri, approval } = await walletConnectService.createSession(chainId);
-          
+
           await ctx.editMessageText(
             `🔗 **Scan QR Code in Your Wallet**\n\n` +
             `WalletConnect URI:\n\`${uri}\`\n\n` +
@@ -411,7 +411,7 @@ Ready to start predicting? 🚀
           // Wait for wallet connection approval
           const session = await approval();
           const walletAddress = session.namespaces.eip155.accounts[0].split(':')[2];
-          
+
           await ctx.editMessageText(
             `✅ **Wallet Connected!**\n\n` +
             `Address: \`${walletAddress.substring(0, 6)}...${walletAddress.substring(38)}\`\n\n` +
@@ -421,7 +421,7 @@ Ready to start predicting? 🚀
 
           // Import blockchain service for real transaction
           const { blockchainService } = await import('./blockchain');
-          
+
           // Create transaction for bet placement
           const txData = await blockchainService.prepareBetTransaction(
             chainId,
@@ -434,82 +434,47 @@ Ready to start predicting? 🚀
 
           // Send transaction request to wallet
           const txHash = await walletConnectService.sendTransaction(session, txData);
-          
-          await ctx.editMessageText('⏳ **Transaction submitted**\n\nWaiting for confirmation...');
 
           // Wait for transaction confirmation
+          const { blockchainService } = await import('./blockchain');
           const receipt = await blockchainService.waitForTransaction(chainId, txHash);
-          
-          if (receipt.status === 1) {
 
-        // Mock transaction hash (replace with real blockchain interaction)
-        const txHash = `0x${Math.random().toString(16).substr(2, 64)}`;
+          const chainConfig = getChainOptions().find(c => c.id === chainId);
+          if (receipt && receipt.status === 1) {
+            await ctx.editMessageText(
+              `✅ **Bet Placed Successfully!**\n\n` +
+              `Transaction: \`${txHash}\`\n` +
+              `Block: ${receipt.blockNumber}\n` +
+              `Chain: ${chainConfig.name}\n\n` +
+              `Your ${betData.amount} USDT bet on ${betData.asset} ${betData.condition} is now active!`,
+              { parse_mode: 'Markdown' }
+            );
 
-        // Get or create user
-        let user = await storage.getUserByTelegramId(telegramId);
-        if (!user) {
-          const newUser: InsertUser = {
-            telegramId,
-            username: ctx.from.username || ctx.from.first_name,
-            referralCode: `ref_${telegramId}`,
-          };
-          user = await storage.createUser(newUser);
-        }
-
-        // Find active market for this bet
-        const markets = await storage.getActiveMarkets();
-        const market = markets.find(m => 
-          m.chainId === chainId && 
-          m.title.toLowerCase().includes(betData.asset.toLowerCase())
-        );
-
-        if (market) {
-          // Create bet record
-          const newBet: InsertBet = {
-            userId: user.id,
-            marketId: market.id,
-            chainId,
-            amount: betData.amount,
-            prediction: betData.prediction === 'YES',
-            txHash,
-          };
-
-          await storage.createBet(newBet);
-
-          // Update market pools
-          if (betData.prediction === 'YES') {
-            await storage.updateMarket(market.id, {
-              yesPool: market.yesPool + betData.amount
+            // Store bet in database with real tx hash
+            await storage.createBet({
+              userId: user.id,
+              marketId: market.id,
+              amount: betData.amount,
+              prediction: betData.prediction === 'YES',
+              chainId: chainId,
+              txHash: txHash,
+              blockNumber: receipt.blockNumber
             });
           } else {
-            await storage.updateMarket(market.id, {
-              noPool: market.noPool + betData.amount
-            });
+            await ctx.editMessageText('❌ Transaction failed. Please check your wallet and try again.');
           }
-
-          // Update user stats
-          await storage.updateUser(user.id, {
-            totalBets: (user.totalBets || 0) + 1,
-            lastActive: new Date(),
-          });
+        } catch (txError) {
+          console.error('Transaction execution failed:', txError);
+          await ctx.editMessageText(
+            `❌ **Transaction Failed**\n\n` +
+            `Error: ${txError.message}\n\n` +
+            `Please check your wallet and try again.`
+          );
         }
-
-        // Clean up temporary storage
-        global.tempBetStorage?.delete(betId);
-
-        const chainInfo = getChainOptions().find(c => c.id === chainId);
-
-        await ctx.editMessageText(
-          `✅ **Bet Placed Successfully!**\n\n` +
-          `🔗 Chain: ${chainInfo?.name}\n` +
-          `💰 Amount: ${betData.amount} USDT\n` +
-          `📈 Prediction: ${betData.prediction}\n` +
-          `🔗 TX: \`${txHash}\`\n` +
-          `🔍 Explorer: ${chainInfo?.explorer}/tx/${txHash}\n\n` +
-          `Your bet is now active! Check /mybets for updates.`,
-          { parse_mode: 'Markdown' }
-        );
-
+      } catch (error) {
+          console.error('❌ Wallet connection failed:', error);
+          await ctx.editMessageText('❌ Wallet connection failed. Please try again.');
+        }
       } catch (error) {
         console.error('Bet confirmation error:', error);
         ctx.reply('❌ Error confirming bet. Please try again.');
@@ -925,7 +890,7 @@ Share your link and start earning! 💰
     this.bot.command('admin', async (ctx) => {
       const adminUsers = ['maxinayas']; // Only @maxinayas has admin access
       const username = ctx.from.username;
-      
+
       if (!adminUsers.includes(username)) {
         return ctx.reply('❌ Access denied. Only @maxinayas has admin privileges.');
       }
@@ -965,7 +930,7 @@ Share your link and start earning! 💰
     // Admin resolve market
     this.bot.action('admin:resolve', async (ctx) => {
       const markets = await storage.getActiveMarkets();
-      
+
       if (markets.length === 0) {
         return ctx.editMessageText('❌ No active markets to resolve.');
       }
@@ -993,7 +958,7 @@ Share your link and start earning! 💰
     // Admin remove market
     this.bot.action('admin:remove', async (ctx) => {
       const markets = await storage.getActiveMarkets();
-      
+
       if (markets.length === 0) {
         return ctx.editMessageText('❌ No markets to remove.');
       }
@@ -1022,10 +987,10 @@ Share your link and start earning! 💰
     this.bot.action('admin:stats', async (ctx) => {
       const markets = await storage.getActiveMarkets();
       const users = await storage.getLeaderboard(100);
-      
+
       let totalVolume = 0;
       let totalBets = 0;
-      
+
       for (const user of users) {
         const userBets = await storage.getBetsByUser(user.id);
         totalBets += userBets.length;
@@ -1060,14 +1025,14 @@ Share your link and start earning! 💰
     this.bot.hears(/^CREATE:/i, async (ctx) => {
       const adminUsers = ['maxinayas']; // Only @maxinayas can create markets
       const username = ctx.from.username;
-      
+
       if (!adminUsers.includes(username)) {
         return ctx.reply('❌ Access denied. Only @maxinayas can create markets.');
       }
 
       const text = ctx.message.text;
       const parts = text.split('|').map(p => p.trim());
-      
+
       if (parts.length < 4) {
         return ctx.reply(
           '❌ Invalid format. Use:\n' +
@@ -1127,7 +1092,7 @@ Share your link and start earning! 💰
     this.bot.action(/resolve_market:(.+)/, async (ctx) => {
       const marketId = parseInt(ctx.match[1]);
       const market = await storage.getMarket(marketId);
-      
+
       if (!market) {
         return ctx.answerCbQuery('Market not found');
       }
@@ -1157,7 +1122,7 @@ Share your link and start earning! 💰
     this.bot.action(/confirm_resolve:(\d+):(true|false)/, async (ctx) => {
       const marketId = parseInt(ctx.match[1]);
       const resolution = ctx.match[2] === 'true';
-      
+
       try {
         const market = await storage.getMarket(marketId);
         if (!market) {
@@ -1168,7 +1133,7 @@ Share your link and start earning! 💰
 
         // Resolve market on-chain with automatic payouts
         const { blockchainService } = await import('./blockchain');
-        
+
         const adminPrivateKey = process.env.RELAYER_PRIVATE_KEY;
         if (!adminPrivateKey) {
           throw new Error('Admin private key not configured');
@@ -1189,7 +1154,7 @@ Share your link and start earning! 💰
         });
 
         const totalPool = (market.yesPool || 0) + (market.noPool || 0);
-        
+
         await ctx.editMessageText(
           `✅ **Market Resolved On-Chain!**\n\n` +
           `📊 **${market.title}**\n` +
@@ -1238,7 +1203,7 @@ Share your link and start earning! 💰
     this.bot.action(/remove_market:(.+)/, async (ctx) => {
       const marketId = parseInt(ctx.match[1]);
       const market = await storage.getMarket(marketId);
-      
+
       if (!market) {
         return ctx.answerCbQuery('Market not found');
       }
@@ -1262,7 +1227,7 @@ Share your link and start earning! 💰
 
     this.bot.action(/confirm_remove:(\d+)/, async (ctx) => {
       const marketId = parseInt(ctx.match[1]);
-      
+
       try {
         // In a real implementation, you'd refund all bets here
         await storage.updateMarket(marketId, {
@@ -1285,7 +1250,7 @@ Share your link and start earning! 💰
     // AI Conversation Handler (like Noya.ai)
     this.bot.on('text', async (ctx) => {
       const text = ctx.message.text;
-      
+
       // Skip if it's a command or bet
       if (text.startsWith('/') || text.toLowerCase().includes('bet ')) {
         return;
@@ -1303,6 +1268,168 @@ Share your link and start earning! 💰
         console.error('AI conversation error:', error);
         // Fallback to simple responses
         await ctx.reply(this.getFallbackResponse(text));
+      }
+    });
+
+    // Enhanced fallback parser for betting format - supports ANY asset
+    const parseSimpleBet = (text: string) => {
+      const cleanText = text.toLowerCase().trim();
+
+      // Enhanced regex to match any asset name (including multi-word assets)
+      const patterns = [
+        // bet 100 USDT on BITCOIN above 70000
+        /bet\s+(\d+(?:\.\d+)?)\s+(usdt?|usd|dollars?)\s+on\s+([a-z0-9_\-\s]+?)\s+(above|below|over|under)\s+\$?(\d+(?:,\d{3})*(?:\.\d+)?)\s*k?(?:\s+by\s+(.+))?/i,
+        // bet 100 on BTC above 70k
+        /bet\s+(\d+(?:\.\d+)?)\s+on\s+([a-z0-9_\-\s]+?)\s+(above|below|over|under)\s+\$?(\d+(?:,\d{3})*(?:\.\d+)?)\s*k?(?:\s+by\s+(.+))?/i,
+        // 100 USDT BTC above 70000
+        /(\d+(?:\.\d+)?)\s+(usdt?|usd|dollars?)\s+([a-z0-9_\-\s]+?)\s+(above|below|over|under)\s+\$?(\d+(?:,\d{3})*(?:\.\d+)?)\s*k?(?:\s+by\s+(.+))?/i,
+        // 100 BTC above 70k
+        /(\d+(?:\.\d+)?)\s+([a-z0-9_\-\s]+?)\s+(above|below|over|under)\s+\$?(\d+(?:,\d{3})*(?:\.\d+)?)\s*k?(?:\s+by\s+(.+))?/i
+      ];
+
+      for (const pattern of patterns) {
+        const match = cleanText.match(pattern);
+        if (match) {
+          let amount, currency, asset, direction, priceStr, timeframe;
+
+          if (pattern === patterns[0]) {
+            [, amount, currency, asset, direction, priceStr, timeframe] = match;
+          } else if (pattern === patterns[1]) {
+            [, amount, asset, direction, priceStr, timeframe] = match;
+            currency = 'USDT';
+          } else if (pattern === patterns[2]) {
+            [, amount, currency, asset, direction, priceStr, timeframe] = match;
+          } else {
+            [, amount, asset, direction, priceStr, timeframe] = match;
+            currency = 'USDT';
+          }
+
+          let price = parseFloat(priceStr.replace(/,/g, ''));
+
+          // Handle 'k' suffix
+          if (text.includes('k') || text.includes('K')) {
+            price *= 1000;
+          }
+
+          const isAbove = ['above', 'over'].includes(direction);
+
+          // Clean up asset name (remove extra spaces, convert to uppercase)
+          const cleanAsset = asset.trim().replace(/\s+/g, '_').toUpperCase();
+
+          return {
+            asset: cleanAsset,
+            amount: parseFloat(amount),
+            currency: 'USDT',
+            prediction: isAbove ? 'YES' : 'NO',
+            condition: `${isAbove ? 'above' : 'below'} $${price.toLocaleString()}`,
+            deadline: timeframe || 'end of day',
+            price: price
+          };
+        }
+      }
+
+      return null;
+    };
+
+    // Enhanced admin commands for @maxinayas
+    this.bot.command('createmarket', async (ctx) => {
+      const username = ctx.from?.username;
+      if (username !== 'maxinayas') {
+        await ctx.reply('❌ Access denied. Only @maxinayas can create markets.');
+        return;
+      }
+
+      const args = ctx.message.text.split(' ').slice(1);
+
+      if (args.length < 4) {
+        await ctx.reply(
+          '🎯 **Market Creation Menu**\n\n' +
+          'Use: `/createmarket ASSET PRICE DIRECTION TIMEFRAME [DESCRIPTION]`\n\n' +
+          'Examples:\n' +
+          '• `/createmarket DOGE 1.50 above "1 week" "Dogecoin pump prediction"`\n' +
+          '• `/createmarket TESLA 300 below "end of month" "Tesla stock correction"`\n' +
+          '• `/createmarket GOLD 2100 above "2 weeks" "Gold rally continues"`\n' +
+          '• `/createmarket CUSTOM_TOKEN 0.05 above "3 days" "New token moon shot"`',
+          { parse_mode: 'Markdown' }
+        );
+        return;
+      }
+
+      const [asset, priceStr, direction, timeframe, ...descParts] = args;
+      const price = parseFloat(priceStr);
+      const description = descParts.join(' ') || `${asset} price prediction`;
+
+      if (isNaN(price) || price <= 0) {
+        await ctx.reply('❌ Invalid price. Please enter a valid number.');
+        return;
+      }
+
+      if (!['above', 'below', 'over', 'under'].includes(direction.toLowerCase())) {
+        await ctx.reply('❌ Direction must be "above", "below", "over", or "under".');
+        return;
+      }
+
+      try {
+        // Calculate expiry time based on timeframe
+        const now = new Date();
+        let expiryTime = new Date();
+
+        const timeframeLower = timeframe.toLowerCase().replace(/"/g, '');
+        if (timeframeLower.includes('hour')) {
+          const hours = parseInt(timeframeLower) || 1;
+          expiryTime.setHours(now.getHours() + hours);
+        } else if (timeframeLower.includes('day')) {
+          const days = parseInt(timeframeLower) || 1;
+          expiryTime.setDate(now.getDate() + days);
+        } else if (timeframeLower.includes('week')) {
+          const weeks = parseInt(timeframeLower) || 1;
+          expiryTime.setDate(now.getDate() + (weeks * 7));
+        } else if (timeframeLower.includes('month')) {
+          const months = parseInt(timeframeLower) || 1;
+          expiryTime.setMonth(now.getMonth() + months);
+        } else {
+          // Default to 24 hours
+          expiryTime.setDate(now.getDate() + 1);
+        }
+
+        const isAbove = ['above', 'over'].includes(direction.toLowerCase());
+
+        // Create market in database
+        const market = await storage.createMarket({
+          title: `${asset.toUpperCase()} ${isAbove ? 'above' : 'below'} $${price}`,
+          description,
+          asset: asset.toUpperCase(),
+          targetPrice: price,
+          isAbove,
+          expiryDate: expiryTime.toISOString(),
+          chainId: 'flare', // Default to Flare
+          yesPool: 0,
+          noPool: 0,
+          isActive: true,
+          createdBy: 'admin'
+        });
+
+        await ctx.reply(
+          `✅ **Market Created Successfully!**\n\n` +
+          `📊 **${market.title}**\n` +
+          `📝 ${description}\n` +
+          `💰 Target: $${price.toLocaleString()}\n` +
+          `⏰ Expires: ${expiryTime.toLocaleDateString()}\n` +
+          `🆔 Market ID: ${market.id}\n\n` +
+          `Users can now bet on this market!`,
+          { parse_mode: 'Markdown' }
+        );
+
+        // Broadcast to all users
+        await ctx.reply(
+          `🚨 **NEW PREDICTION MARKET**\n\n` +
+          `${market.title}\n` +
+          `Bet now with: "bet 100 USDT on ${asset} ${direction} ${price}"`
+        );
+
+      } catch (error) {
+        console.error('Error creating market:', error);
+        await ctx.reply('❌ Failed to create market. Please try again.');
       }
     });
 
@@ -1368,7 +1495,7 @@ User message: "${userMessage}"`;
       if (response.ok) {
         const result = await response.json();
         const aiText = result.output?.choices?.[0]?.message?.content || result.output?.text;
-        
+
         if (aiText) {
           return aiText.substring(0, 4000); // Telegram message limit
         }
@@ -1383,7 +1510,7 @@ User message: "${userMessage}"`;
 
   private getFallbackResponse(userMessage: string): string {
     const lowerMessage = userMessage.toLowerCase();
-    
+
     const responses = {
       'hello': '👋 Hello! I\'m Noya, your AI assistant for multichain prediction markets. How can I help you today?',
       'hi': '👋 Hi there! Ready to make some predictions? Try "bet 100 USDT on BTC above 70k by Friday" or use /predict.',
