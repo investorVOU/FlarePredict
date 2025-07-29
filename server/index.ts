@@ -1,7 +1,9 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { telegramBot } from "./telegram-bot";
+import { telegramBot } from './telegram-bot';
+import { blockchainService } from './blockchain';
+import { walletConnectService } from './walletconnect';
 
 const app = express();
 app.use(express.json());
@@ -40,7 +42,7 @@ app.use((req, res, next) => {
 (async () => {
   // Start Telegram bot
   await telegramBot.start();
-  
+
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -65,10 +67,22 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen(port, "0.0.0.0", () => {
+  server.listen(port, "0.0.0.0", async () => {
     log(`🚀 Server running on http://0.0.0.0:${port}`);
     log(`🌐 Web dashboard available at webview`);
     log(`🤖 Telegram bot status: ${telegramBot.getStatus().mode}`);
     log(`✅ Application fully started and ready!`);
+
+    // Initialize blockchain services
+    console.log('🔗 Initializing blockchain connections...');
+
+    // Initialize WalletConnect
+    console.log('💰 Initializing WalletConnect v2...');
+    await walletConnectService.initialize();
+
+    // Start Telegram bot
+    await telegramBot.start();
+
+    console.log('✅ All services initialized successfully');
   });
 })();
