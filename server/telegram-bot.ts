@@ -436,7 +436,6 @@ Ready to start predicting? 🚀
           const txHash = await walletConnectService.sendTransaction(session, txData);
 
           // Wait for transaction confirmation
-          const { blockchainService } = await import('./blockchain');
           const receipt = await blockchainService.waitForTransaction(chainId, txHash);
 
           const chainConfig = getChainOptions().find(c => c.id === chainId);
@@ -472,9 +471,9 @@ Ready to start predicting? 🚀
           );
         }
       } catch (error) {
-          console.error('❌ Wallet connection failed:', error);
-          await ctx.editMessageText('❌ Wallet connection failed. Please try again.');
-        }
+        console.error('❌ Wallet connection failed:', error);
+        await ctx.editMessageText('❌ Wallet connection failed. Please try again.');
+      }
       } catch (error) {
         console.error('Bet confirmation error:', error);
         ctx.reply('❌ Error confirming bet. Please try again.');
