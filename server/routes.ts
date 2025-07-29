@@ -1,15 +1,25 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { telegramBot } from "./telegram-bot";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Bot status endpoint
   app.get("/api/bot/status", async (req, res) => {
+    const activeMarkets = await storage.getActiveMarkets();
+    const users = Array.from((storage as any).users.values());
+    const botStatus = telegramBot.getStatus();
+    
     res.json({
-      status: "active",
+      status: botStatus.isRunning ? "active" : "inactive",
       uptime: process.uptime(),
-      markets: (await storage.getActiveMarkets()).length,
-      users: Array.from((storage as any).users.values()).length,
+      markets: activeMarkets.length,
+      users: users.length,
+      mode: botStatus.mode,
+      telegram: {
+        connected: botStatus.isRunning,
+        mode: botStatus.mode,
+      }
     });
   });
 
