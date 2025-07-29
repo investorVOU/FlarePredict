@@ -153,7 +153,23 @@ contract PredictionMarket is ReentrancyGuard, Ownable {
         return betId;
     }
 
-    function resolveMarket(uint256 _marketId) external {
+    // Admin-only market resolution (for @maxinayas)
+    function resolveMarket(uint256 _marketId, bool _outcome) external onlyOwner {
+        Market storage market = markets[_marketId];
+        require(market.id != 0, "Market does not exist");
+        require(!market.resolved, "Market already resolved");
+        
+        market.resolved = true;
+        market.outcome = _outcome;
+        
+        emit MarketResolved(_marketId, _outcome, 0);
+        
+        // Automatically process payouts after resolution
+        _processPayout(_marketId);
+    }
+
+    // Automatic oracle resolution (fallback for time-based markets)
+    function resolveMarketWithOracle(uint256 _marketId) external {
         Market storage market = markets[_marketId];
         require(market.id != 0, "Market does not exist");
         require(block.timestamp >= market.expiryTime, "Market not expired yet");
@@ -178,7 +194,55 @@ contract PredictionMarket is ReentrancyGuard, Ownable {
         market.outcome = outcome;
         
         emit MarketResolved(_marketId, outcome, finalPrice);
+        
+        // Automatically process payouts after resolution
+        _processPayout(_marketId);
     }
+
+    // Automatic payout processing
+    function processPayout(uint256 _marketId) external {
+        _processPayout(_marketId);
+    }
+
+    function _processPayout(uint256 _marketId) internal {
+        Market storage market = markets[_marketId];
+        require(market.resolved, "Market not resolved");
+        
+        uint256[] memory marketBetIds = marketBets[_marketId];
+        uint256 totalPayout = 0;
+        
+        for (uint256 i = 0; i < marketBetIds.length; i++) {
+            uint256 betId = marketBetIds[i];
+            Bet storage bet = bets[betId];
+            
+            if (!bet.claimed && bet.prediction == market.outcome) {
+                uint256 totalPool = market.yesPool + market.noPool;
+                uint256 winningPool = market.outcome ? market.yesPool : market.noPool;
+                
+                if (winningPool > 0) {
+                    uint256 grossPayout = (bet.amount * totalPool) / winningPool;
+                    uint256 platformFee = (grossPayout * PLATFORM_FEE) / 10000;
+                    uint256 netPayout = grossPayout - platformFee;
+                    
+                    bet.claimed = true;
+                    totalPayout += netPayout;
+                    
+                    // Automatic payout transfer
+                    require(usdtToken.transfer(bet.bettor, netPayout), "Payout failed");
+                    
+                    emit BetClaimed(betId, bet.bettor, netPayout);
+                }
+            } else if (!bet.claimed) {
+                // Mark losing bets as claimed
+                bet.claimed = true;
+                emit BetClaimed(betId, bet.bettor, 0);
+            }
+        }
+        
+        emit PayoutsProcessed(_marketId, totalPayout);
+    }
+
+    event PayoutsProcessed(uint256 indexed marketId, uint256 totalPayout);
 
     function claimBet(uint256 _betId) external nonReentrant {
         Bet storage bet = bets[_betId];

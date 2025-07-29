@@ -391,13 +391,56 @@ Ready to start predicting? 🚀
           return ctx.reply('❌ Bet data expired. Please try again.');
         }
 
-        await ctx.editMessageText('🔗 Connecting to WalletConnect v2...\n\nScan QR code in your wallet app');
+        // Import WalletConnect service
+        const { walletConnectService } = await import('./walletconnect');
+        
+        await ctx.editMessageText('🔗 Initializing WalletConnect v2...\n\nPlease wait...');
 
-        // Here you would integrate real WalletConnect
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        try {
+          // Create wallet connection session
+          const { uri, approval } = await walletConnectService.createSession(chainId);
+          
+          await ctx.editMessageText(
+            `🔗 **Scan QR Code in Your Wallet**\n\n` +
+            `WalletConnect URI:\n\`${uri}\`\n\n` +
+            `Supported wallets: MetaMask, Bifrost, Rabby, Trust Wallet\n\n` +
+            `Waiting for connection...`,
+            { parse_mode: 'Markdown' }
+          );
 
-        await ctx.editMessageText('📝 Please confirm the transaction in your wallet...');
-        await new Promise(resolve => setTimeout(resolve, 4000));
+          // Wait for wallet connection approval
+          const session = await approval();
+          const walletAddress = session.namespaces.eip155.accounts[0].split(':')[2];
+          
+          await ctx.editMessageText(
+            `✅ **Wallet Connected!**\n\n` +
+            `Address: \`${walletAddress.substring(0, 6)}...${walletAddress.substring(38)}\`\n\n` +
+            `Preparing transaction...`,
+            { parse_mode: 'Markdown' }
+          );
+
+          // Import blockchain service for real transaction
+          const { blockchainService } = await import('./blockchain');
+          
+          // Create transaction for bet placement
+          const txData = await blockchainService.prepareBetTransaction(
+            chainId,
+            walletAddress,
+            betData.amount,
+            betData.prediction === 'YES'
+          );
+
+          await ctx.editMessageText('📝 **Confirm transaction in your wallet**\n\nPlease approve the transaction to place your bet.');
+
+          // Send transaction request to wallet
+          const txHash = await walletConnectService.sendTransaction(session, txData);
+          
+          await ctx.editMessageText('⏳ **Transaction submitted**\n\nWaiting for confirmation...');
+
+          // Wait for transaction confirmation
+          const receipt = await blockchainService.waitForTransaction(chainId, txHash);
+          
+          if (receipt.status === 1) {
 
         // Mock transaction hash (replace with real blockchain interaction)
         const txHash = `0x${Math.random().toString(16).substr(2, 64)}`;
@@ -880,11 +923,11 @@ Share your link and start earning! 💰
 
     // Admin commands for prediction management
     this.bot.command('admin', async (ctx) => {
-      const adminUsers = ['maxinayas']; // Add your admin usernames here
+      const adminUsers = ['maxinayas']; // Only @maxinayas has admin access
       const username = ctx.from.username;
       
       if (!adminUsers.includes(username)) {
-        return ctx.reply('❌ Admin access required.');
+        return ctx.reply('❌ Access denied. Only @maxinayas has admin privileges.');
       }
 
       const keyboard = Markup.inlineKeyboard([
@@ -1015,11 +1058,11 @@ Share your link and start earning! 💰
 
     // Market creation handler
     this.bot.hears(/^CREATE:/i, async (ctx) => {
-      const adminUsers = ['maxinayas'];
+      const adminUsers = ['maxinayas']; // Only @maxinayas can create markets
       const username = ctx.from.username;
       
       if (!adminUsers.includes(username)) {
-        return ctx.reply('❌ Admin access required.');
+        return ctx.reply('❌ Access denied. Only @maxinayas can create markets.');
       }
 
       const text = ctx.message.text;
@@ -1116,27 +1159,78 @@ Share your link and start earning! 💰
       const resolution = ctx.match[2] === 'true';
       
       try {
+        const market = await storage.getMarket(marketId);
+        if (!market) {
+          return ctx.answerCbQuery('Market not found');
+        }
+
+        await ctx.editMessageText('⏳ **Resolving market on-chain...**\n\nProcessing smart contract transaction...');
+
+        // Resolve market on-chain with automatic payouts
+        const { blockchainService } = await import('./blockchain');
+        
+        const adminPrivateKey = process.env.RELAYER_PRIVATE_KEY;
+        if (!adminPrivateKey) {
+          throw new Error('Admin private key not configured');
+        }
+
+        const txHash = await blockchainService.resolveMarketOnChain(
+          market.chainId,
+          marketId.toString(),
+          resolution,
+          adminPrivateKey
+        );
+
+        // Update database
         await storage.updateMarket(marketId, {
           isResolved: true,
           resolution,
           resolvedAt: new Date(),
         });
 
-        const market = await storage.getMarket(marketId);
-        const totalPool = (market?.yesPool || 0) + (market?.noPool || 0);
+        const totalPool = (market.yesPool || 0) + (market.noPool || 0);
         
         await ctx.editMessageText(
-          `✅ **Market Resolved!**\n\n` +
-          `📊 **${market?.title}**\n` +
+          `✅ **Market Resolved On-Chain!**\n\n` +
+          `📊 **${market.title}**\n` +
           `🎯 Resolution: **${resolution ? 'YES' : 'NO'}**\n` +
-          `💰 Total Pool: ${totalPool} USDT\n\n` +
-          `Payouts are being processed automatically...`,
+          `💰 Total Pool: ${totalPool} USDT\n` +
+          `🔗 TX Hash: \`${txHash}\`\n\n` +
+          `🚀 **Automatic payouts processed!**\n` +
+          `Winners have been paid directly to their wallets via smart contract.`,
           { parse_mode: 'Markdown' }
         );
 
+        // Notify all users with winning bets
+        const userBets = await storage.getBetsByMarket(marketId);
+        for (const bet of userBets) {
+          if (bet.prediction === resolution) {
+            const user = await storage.getUser(bet.userId);
+            if (user?.telegramId) {
+              try {
+                await this.bot?.telegram.sendMessage(
+                  user.telegramId,
+                  `🎉 **Congratulations!**\n\n` +
+                  `Your bet on "${market.title}" won!\n` +
+                  `Payout has been automatically sent to your wallet.\n\n` +
+                  `🔗 TX: \`${txHash}\``,
+                  { parse_mode: 'Markdown' }
+                );
+              } catch (e) {
+                console.log(`Failed to notify user ${user.telegramId}:`, e);
+              }
+            }
+          }
+        }
+
       } catch (error) {
-        console.error('Market resolution error:', error);
-        ctx.answerCbQuery('Error resolving market');
+        console.error('On-chain market resolution error:', error);
+        await ctx.editMessageText(
+          `❌ **Resolution Failed**\n\n` +
+          `Error: ${error.message}\n\n` +
+          `Please check admin private key configuration and try again.`,
+          { parse_mode: 'Markdown' }
+        );
       }
     });
 

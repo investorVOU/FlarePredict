@@ -1,329 +1,170 @@
+import { SignClient } from '@walletconnect/sign-client';
+import { Web3Modal } from '@web3modal/standalone';
 
-import { Core } from '@walletconnect/core';
-import { Web3Wallet, IWeb3Wallet } from '@walletconnect/web3wallet';
-import { buildApprovedNamespaces, getSdkError } from '@walletconnect/utils';
+interface WalletConnectSession {
+  topic: string;
+  namespaces: any;
+  peer: any;
+}
 
 export class WalletConnectService {
-  private web3wallet: IWeb3Wallet | null = null;
-  private core: Core | null = null;
-  private isInitialized = false;
-  private sessions: Map<string, any> = new Map();
+  private signClient: SignClient | null = null;
+  private web3Modal: Web3Modal | null = null;
+  private sessions: Map<string, WalletConnectSession> = new Map();
 
-  async initialize(): Promise<void> {
+  constructor() {
+    this.initializeWalletConnect();
+  }
+
+  private async initializeWalletConnect() {
     try {
       const projectId = process.env.WALLETCONNECT_PROJECT_ID;
-      
+
       if (!projectId) {
-        console.log('⚠️  WalletConnect Project ID not provided - running in mock mode');
+        console.log('⚠️ WalletConnect Project ID not found, using mock mode');
         return;
       }
 
-      this.core = new Core({
-        projectId: projectId,
-      });
-
-      this.web3wallet = await Web3Wallet.init({
-        core: this.core,
+      this.signClient = await SignClient.init({
+        projectId,
         metadata: {
           name: 'MultiChain Prediction Markets',
           description: 'Decentralized prediction markets across multiple blockchains',
           url: 'https://prediction-markets.replit.app',
-          icons: ['https://prediction-markets.replit.app/logo.png'],
-        },
+          icons: ['https://walletconnect.com/walletconnect-logo.png']
+        }
       });
 
-      this.setupEventListeners();
-      this.isInitialized = true;
-      
+      this.web3Modal = new Web3Modal({
+        projectId,
+        standaloneChains: [
+          'eip155:1',    // Ethereum
+          'eip155:137',  // Polygon
+          'eip155:42161', // Arbitrum
+          'eip155:10',   // Optimism
+          'eip155:8453', // Base
+          'eip155:56',   // BSC
+          'eip155:43114', // Avalanche
+          'eip155:14',   // Flare
+        ]
+      });
+
       console.log('✅ WalletConnect v2 initialized successfully');
     } catch (error) {
-      console.error('❌ Failed to initialize WalletConnect:', error);
+      console.error('❌ WalletConnect initialization failed:', error);
     }
   }
 
-  private setupEventListeners(): void {
-    if (!this.web3wallet) return;
-
-    // Handle session proposals
-    this.web3wallet.on('session_proposal', async (event) => {
-      console.log('📨 Session proposal received:', event);
-      
-      try {
-        const { id, params } = event;
-        const { requiredNamespaces, relays } = params;
-
-        // Build approved namespaces
-        const approvedNamespaces = buildApprovedNamespaces({
-          proposal: params,
-          supportedNamespaces: {
-            eip155: {
-              chains: [
-                'eip155:1',    // Ethereum
-                'eip155:14',   // Flare
-                'eip155:137',  // Polygon
-                'eip155:42161', // Arbitrum
-                'eip155:10',   // Optimism
-                'eip155:8453', // Base
-                'eip155:56',   // BSC
-                'eip155:43114', // Avalanche
-              ],
-              methods: [
-                'eth_sendTransaction',
-                'eth_signTransaction',
-                'eth_sign',
-                'personal_sign',
-                'eth_signTypedData',
-              ],
-              events: ['chainChanged', 'accountsChanged'],
-              accounts: [
-                'eip155:1:0x0000000000000000000000000000000000000000',
-                'eip155:14:0x0000000000000000000000000000000000000000',
-                'eip155:137:0x0000000000000000000000000000000000000000',
-                'eip155:42161:0x0000000000000000000000000000000000000000',
-              ]
-            },
-          },
-        });
-
-        // Approve the session
-        const session = await this.web3wallet.approveSession({
-          id,
-          namespaces: approvedNamespaces,
-        });
-
-        console.log('✅ Session approved:', session);
-      } catch (error) {
-        console.error('❌ Failed to approve session:', error);
-        
-        await this.web3wallet.rejectSession({
-          id: event.id,
-          reason: getSdkError('USER_REJECTED'),
-        });
-      }
-    });
-
-    // Handle session requests (transaction signing, etc.)
-    this.web3wallet.on('session_request', async (event) => {
-      console.log('📨 Session request received:', event);
-      
-      try {
-        const { topic, params, id } = event;
-        const { request } = params;
-        
-        // Handle different request methods
-        switch (request.method) {
-          case 'eth_sendTransaction':
-            await this.handleSendTransaction(topic, id, request.params);
-            break;
-          case 'personal_sign':
-            await this.handlePersonalSign(topic, id, request.params);
-            break;
-          case 'eth_signTypedData':
-            await this.handleSignTypedData(topic, id, request.params);
-            break;
-          default:
-            await this.web3wallet.respondSessionRequest({
-              topic,
-              response: {
-                id,
-                error: getSdkError('UNSUPPORTED_METHODS'),
-              },
-            });
-        }
-      } catch (error) {
-        console.error('❌ Failed to handle session request:', error);
-        
-        await this.web3wallet.respondSessionRequest({
-          topic: event.topic,
-          response: {
-            id: event.id,
-            error: getSdkError('USER_REJECTED'),
-          },
-        });
-      }
-    });
-
-    // Handle session delete
-    this.web3wallet.on('session_delete', (event) => {
-      console.log('🗑️  Session deleted:', event);
-      this.sessions.delete(event.topic);
-    });
-  }
-
-  private async handleSendTransaction(topic: string, id: number, params: any[]): Promise<void> {
-    if (!this.web3wallet) return;
-
-    try {
-      // In a real implementation, you would:
-      // 1. Validate the transaction
-      // 2. Show user approval UI
-      // 3. Sign and broadcast the transaction
-      
-      // For demo purposes, we'll simulate a successful transaction
-      const mockTxHash = `0x${Math.random().toString(16).substr(2, 64)}`;
-      
-      await this.web3wallet.respondSessionRequest({
-        topic,
-        response: {
-          id,
-          result: mockTxHash,
-        },
-      });
-
-      console.log('✅ Transaction sent:', mockTxHash);
-    } catch (error) {
-      console.error('❌ Failed to send transaction:', error);
-      
-      await this.web3wallet.respondSessionRequest({
-        topic,
-        response: {
-          id,
-          error: getSdkError('USER_REJECTED'),
-        },
-      });
-    }
-  }
-
-  private async handlePersonalSign(topic: string, id: number, params: any[]): Promise<void> {
-    if (!this.web3wallet) return;
-
-    try {
-      // Mock signature
-      const mockSignature = `0x${Math.random().toString(16).substr(2, 130)}`;
-      
-      await this.web3wallet.respondSessionRequest({
-        topic,
-        response: {
-          id,
-          result: mockSignature,
-        },
-      });
-
-      console.log('✅ Message signed');
-    } catch (error) {
-      console.error('❌ Failed to sign message:', error);
-      
-      await this.web3wallet.respondSessionRequest({
-        topic,
-        response: {
-          id,
-          error: getSdkError('USER_REJECTED'),
-        },
-      });
-    }
-  }
-
-  private async handleSignTypedData(topic: string, id: number, params: any[]): Promise<void> {
-    if (!this.web3wallet) return;
-
-    try {
-      // Mock signature for typed data
-      const mockSignature = `0x${Math.random().toString(16).substr(2, 130)}`;
-      
-      await this.web3wallet.respondSessionRequest({
-        topic,
-        response: {
-          id,
-          result: mockSignature,
-        },
-      });
-
-      console.log('✅ Typed data signed');
-    } catch (error) {
-      console.error('❌ Failed to sign typed data:', error);
-      
-      await this.web3wallet.respondSessionRequest({
-        topic,
-        response: {
-          id,
-          error: getSdkError('USER_REJECTED'),
-        },
-      });
-    }
-  }
-
-  async createSession(telegramId: string): Promise<{uri: string, approval: Promise<any>}> {
-    if (!this.web3wallet || !this.isInitialized) {
+  async createSession(chainId: string): Promise<{ uri: string; approval: () => Promise<WalletConnectSession> }> {
+    if (!this.signClient) {
       throw new Error('WalletConnect not initialized');
     }
 
-    try {
-      const { uri, approval } = await this.web3wallet.core.pairing.create();
-      
-      if (!uri) {
-        throw new Error('Failed to create pairing URI');
-      }
+    const chainConfig = this.getChainConfig(chainId);
 
-      // Store session mapping
-      approval.then((session) => {
-        this.sessions.set(telegramId, session);
-        console.log(`✅ Session created for user ${telegramId}`);
-      }).catch((error) => {
-        console.error('❌ Session approval failed:', error);
-      });
-
-      return { uri, approval };
-    } catch (error) {
-      console.error('❌ Failed to create session:', error);
-      throw error;
-    }
-  }
-
-  async disconnectSession(telegramId: string): Promise<void> {
-    const session = this.sessions.get(telegramId);
-    
-    if (session && this.web3wallet) {
-      try {
-        await this.web3wallet.disconnectSession({
-          topic: session.topic,
-          reason: getSdkError('USER_DISCONNECTED'),
-        });
-        
-        this.sessions.delete(telegramId);
-        console.log(`✅ Session disconnected for user ${telegramId}`);
-      } catch (error) {
-        console.error('❌ Failed to disconnect session:', error);
-      }
-    }
-  }
-
-  getSession(telegramId: string): any {
-    return this.sessions.get(telegramId);
-  }
-
-  isConnected(telegramId: string): boolean {
-    return this.sessions.has(telegramId);
-  }
-
-  async signTransaction(telegramId: string, transaction: any): Promise<string> {
-    const session = this.sessions.get(telegramId);
-    
-    if (!session || !this.web3wallet) {
-      throw new Error('No active session found');
-    }
-
-    try {
-      const result = await this.web3wallet.request({
-        topic: session.topic,
-        chainId: `eip155:${transaction.chainId}`,
-        request: {
-          method: 'eth_sendTransaction',
-          params: [transaction],
+    const { uri, approval } = await this.signClient.connect({
+      requiredNamespaces: {
+        eip155: {
+          methods: [
+            'eth_sendTransaction',
+            'eth_signTransaction',
+            'eth_sign',
+            'personal_sign',
+            'eth_signTypedData',
+          ],
+          chains: [`eip155:${chainConfig.chainId}`],
+          events: ['chainChanged', 'accountsChanged'],
         },
-      });
+      },
+    });
 
-      return result as string;
-    } catch (error) {
-      console.error('❌ Failed to sign transaction:', error);
-      throw error;
+    if (!uri) {
+      throw new Error('Failed to generate WalletConnect URI');
     }
+
+    return {
+      uri,
+      approval: async () => {
+        const session = await approval();
+        this.sessions.set(session.topic, session);
+        return session;
+      }
+    };
+  }
+
+  async sendTransaction(session: WalletConnectSession, transaction: any): Promise<string> {
+    if (!this.signClient) {
+      throw new Error('WalletConnect not initialized');
+    }
+
+    const result = await this.signClient.request({
+      topic: session.topic,
+      chainId: `eip155:${transaction.chainId}`,
+      request: {
+        method: 'eth_sendTransaction',
+        params: [transaction],
+      },
+    });
+
+    return result as string;
+  }
+
+  async signMessage(session: WalletConnectSession, message: string): Promise<string> {
+    if (!this.signClient) {
+      throw new Error('WalletConnect not initialized');
+    }
+
+    const accounts = session.namespaces.eip155.accounts;
+    const account = accounts[0];
+
+    const result = await this.signClient.request({
+      topic: session.topic,
+      chainId: account.split(':').slice(0, 2).join(':'),
+      request: {
+        method: 'personal_sign',
+        params: [message, account.split(':')[2]],
+      },
+    });
+
+    return result as string;
+  }
+
+  async disconnectSession(topic: string): Promise<void> {
+    if (!this.signClient) {
+      throw new Error('WalletConnect not initialized');
+    }
+
+    await this.signClient.disconnect({
+      topic,
+      reason: {
+        code: 6000,
+        message: 'User disconnected',
+      },
+    });
+
+    this.sessions.delete(topic);
+  }
+
+  private getChainConfig(chainId: string) {
+    const chains: Record<string, { chainId: number; name: string }> = {
+      'flare': { chainId: 14, name: 'Flare' },
+      'ethereum': { chainId: 1, name: 'Ethereum' },
+      'polygon': { chainId: 137, name: 'Polygon' },
+      'arbitrum': { chainId: 42161, name: 'Arbitrum' },
+      'optimism': { chainId: 10, name: 'Optimism' },
+      'base': { chainId: 8453, name: 'Base' },
+      'bsc': { chainId: 56, name: 'BSC' },
+      'avalanche': { chainId: 43114, name: 'Avalanche' },
+    };
+
+    return chains[chainId] || chains['ethereum'];
   }
 
   getStatus() {
     return {
-      isInitialized: this.isInitialized,
+      initialized: !!this.signClient,
       activeSessions: this.sessions.size,
-      projectId: process.env.WALLETCONNECT_PROJECT_ID ? 'configured' : 'missing',
+      projectId: !!process.env.WALLETCONNECT_PROJECT_ID,
     };
   }
 }
