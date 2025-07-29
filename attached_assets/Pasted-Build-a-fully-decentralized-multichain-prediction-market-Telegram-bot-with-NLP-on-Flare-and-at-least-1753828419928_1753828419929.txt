@@ -1,0 +1,107 @@
+Build a fully decentralized multichain prediction market Telegram bot with NLP on Flare and at least 10 other EVM blockchains.
+
+Requirements:
+
+1. Supported Blockchains:
+   - Flare (with FTSO oracle)
+   - Ethereum
+   - Polygon
+   - Arbitrum
+   - Optimism
+   - Base
+   - Binance Smart Chain
+   - Avalanche
+   - Fantom
+   - zkSync
+   - Scroll
+   - Linea
+   - (add easy modular support for more EVMs)
+   - Deploy MarketFactory + PredictionMarket contracts on each chain.
+
+2. Smart Contracts (Solidity + Hardhat):
+   - MarketFactory.sol: deploys and manages multiple PredictionMarket contracts.
+   - PredictionMarket.sol: YES/NO pools, bets, expiry, payouts.
+   - OracleResolver.sol:
+       - On Flare: use FTSO feeds.
+       - On other EVMs: use Chainlink price feeds or another trusted oracle.
+   - Features:
+       a) Multiple concurrent markets per chain.
+       b) Automatic resolution and payouts.
+       c) Referral rewards (on-chain).
+       d) Jackpot pool fed by a % of all bets across chains.
+       e) Optional daily free bet faucet.
+   - Security:
+       - SafeMath (OpenZeppelin).
+       - Anti-reentrancy guard.
+       - Nonce tracking to prevent replay.
+       - Verify only authorized oracle feeds.
+
+3. Telegram Bot (Node.js + Telegraf + Qwen AI):
+   - NLP via Qwen AI: parse natural language bets such as
+       “bet 100 USDT on BTC above 70k by Friday.”
+   - Prompt user to select chain with inline buttons.
+   - Commands:
+       /predict <asset> <condition> <yes/no> <amount>
+       /listmarkets
+       /marketinfo <marketId>
+       /mybets
+       /leaderboard
+       /invite
+       /howto
+       /faq
+   - Inline buttons for one-click confirmations.
+   - Multilingual + voice command support via Qwen AI.
+   - After bets resolve, announce winners with TX links.
+
+4. Wallet Integration:
+   - WalletConnect v2 for cross-chain signing (MetaMask, Bifrost, Rabby).
+   - Gasless betting with meta-transactions where possible.
+   - Map Telegram user IDs ↔ wallet addresses via signed messages (no centralized DB).
+
+5. Admin Controls:
+   - Main admin: @maxinayas (verified via Telegram ID).
+   - Admin commands:
+       /addmarket "ETH > 3500 today?" END:YYYY-MM-DD HH:mm
+       /closemarket <marketId>
+       /listmarkets
+   - Admin can configure min/max bet sizes, daily faucet limits.
+
+6. User Features:
+   - Gasless UX for seamless onboarding.
+   - Leaderboards (weekly + all-time) across all chains.
+   - Referral system: /invite generates referral links with bonus % rewards.
+   - NFT badges for milestones (streaks, biggest wins).
+   - Daily free prediction faucet to keep engagement high.
+   - Portfolio tracking with /mybets showing bets + winnings across all supported chains.
+   - Option to share bets to TG/Twitter.
+
+7. Infrastructure:
+   - Use .env for configs:
+       TG_BOT_TOKEN=...
+       WALLETCONNECT_PROJECT_ID=...
+       QWEN_API_KEY=...
+       RPC_URLS={Flare:..., Ethereum:..., Polygon:..., Arbitrum:..., etc.}
+   - Direct RPC connections to each chain for contract interaction.
+   - Bot is stateless; fetch live data from chain, cache minimally for performance.
+
+8. Security Best Practices:
+   - Input validation (amounts, market ID, oracle feed).
+   - Enforce bet limits.
+   - Anti-front-running (commit-reveal scheme optional for high-value bets).
+   - Role-based access control for admin functions.
+   - Use verified oracles only (FTSO/Chainlink).
+   - Regularly emit events for transparency.
+
+9. Example Flow:
+   - User: “bet 50 USDT on ETH above 3500 today.”
+   - Bot: “Found ETH > 3500 market. Select chain: [Flare] [Polygon] [Arbitrum] [Base] ...”
+   - User selects Polygon.
+   - Bot: “You’re betting 50 USDT on YES (ETH > 3500 today) on Polygon. Potential payout: 82 USDT. Confirm?”
+   - User clicks Confirm → WalletConnect → signs TX.
+   - At expiry, market resolves via oracle → payouts sent → Bot announces results and updates leaderboard.
+
+Deliverables:
+- Solidity contracts (MarketFactory, PredictionMarket, OracleResolver).
+- Node.js Telegram bot (Telegraf + Qwen AI NLP + WalletConnect v2).
+- README.md with setup instructions for multichain deployment.
+- Emphasis on memory optimization, cross-chain UX, gamification, and security.
