@@ -242,11 +242,25 @@ Ready to start predicting? 🚀
           return ctx.reply(`❌ ${parsed.error}\n\nTry: "bet 100 USDT on BTC above 70k by Friday"`);
         }
 
+        // Store bet data temporarily with a short ID
+        const betId = `bet_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+        
+        // Store in memory (in production, use Redis or database)
+        if (!global.tempBetStorage) {
+          global.tempBetStorage = new Map();
+        }
+        global.tempBetStorage.set(betId, parsed.data);
+        
+        // Clean up old entries (older than 10 minutes)
+        setTimeout(() => {
+          global.tempBetStorage?.delete(betId);
+        }, 10 * 60 * 1000);
+
         const chains = getChainOptions();
         const keyboard = Markup.inlineKeyboard(
           chains.map(chain => Markup.button.callback(
             `${chain.emoji} ${chain.name}`, 
-            `select_chain:${chain.id}:${JSON.stringify(parsed.data)}`
+            `chain:${chain.id}:${betId}`
           )),
           { columns: 2 }
         );
@@ -273,15 +287,21 @@ Ready to start predicting? 🚀
     });
 
     // Chain selection callback
-    this.bot.action(/select_chain:(.+):(.+)/, async (ctx) => {
+    this.bot.action(/chain:(.+):(.+)/, async (ctx) => {
       try {
         const chainId = ctx.match[1];
-        const betData = JSON.parse(ctx.match[2]);
+        const betId = ctx.match[2];
+        
+        // Retrieve bet data from temporary storage
+        const betData = global.tempBetStorage?.get(betId);
+        if (!betData) {
+          return ctx.reply('❌ Bet data expired. Please try again.');
+        }
         
         const potentialPayout = Math.round(betData.amount * 1.65);
         
         const confirmKeyboard = Markup.inlineKeyboard([
-          Markup.button.callback('✅ Confirm Bet', `confirm_bet:${chainId}:${JSON.stringify(betData)}`),
+          Markup.button.callback('✅ Confirm Bet', `confirm:${chainId}:${betId}`),
           Markup.button.callback('❌ Cancel', 'cancel_bet')
         ]);
 
@@ -307,11 +327,17 @@ Ready to start predicting? 🚀
     });
 
     // Bet confirmation
-    this.bot.action(/confirm_bet:(.+):(.+)/, async (ctx) => {
+    this.bot.action(/confirm:(.+):(.+)/, async (ctx) => {
       try {
         const chainId = ctx.match[1];
-        const betData = JSON.parse(ctx.match[2]);
+        const betId = ctx.match[2];
         const telegramId = ctx.from.id.toString();
+        
+        // Retrieve bet data from temporary storage
+        const betData = global.tempBetStorage?.get(betId);
+        if (!betData) {
+          return ctx.reply('❌ Bet data expired. Please try again.');
+        }
         
         await ctx.editMessageText('🔗 Connecting to WalletConnect...');
         await new Promise(resolve => setTimeout(resolve, 2000));
@@ -370,6 +396,9 @@ Ready to start predicting? 🚀
             lastActive: new Date(),
           });
         }
+        
+        // Clean up temporary storage
+        global.tempBetStorage?.delete(betId);
         
         await ctx.editMessageText(
           `✅ **Bet Placed Successfully!**\n\n` +
