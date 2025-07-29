@@ -1,0 +1,56 @@
+[
+  {
+    "telegramId": "123456789",
+    "username": "crypto_trader_01",
+    "bet": {
+      "id": "bet_1706527800123",
+      "marketId": "market_btc_70k_2025",
+      "asset": "BTC",
+      "condition": "above $70,000",
+      "prediction": "YES",
+      "amount": 100,
+      "deadline": "end of January",
+      "chainId": "flare",
+      "txHash": "0xa1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456",
+      "timestamp": "2025-01-29T10:30:00.000Z",
+      "status": "active",
+      "potentialPayout": 165
+    }
+  },
+  {
+    "telegramId": "987654321",
+    "username": "prediction_master",
+    "bet": {
+      "id": "bet_1706527900456",
+      "marketId": "market_eth_3500_today",
+      "asset": "ETH",
+      "condition": "above $3,500",
+      "prediction": "NO",
+      "amount": 75,
+      "deadline": "end of day",
+      "chainId": "ethereum",
+      "txHash": "0xf1e2d3c4b5a6789012345678901234567890fedcba1234567890fedcba123456",
+      "timestamp": "2025-01-29T11:15:00.000Z",
+      "status": "active",
+      "potentialPayout": 98
+    }
+  },
+  {
+    "telegramId": "456789123",
+    "username": "oracle_whisperer",
+    "bet": {
+      "id": "bet_1706528000789",
+      "marketId": "market_polygon_matic_2_feb",
+      "asset": "MATIC",
+      "condition": "above $2.00",
+      "prediction": "YES",
+      "amount": 250,
+      "deadline": "February 1st",
+      "chainId": "polygon",
+      "txHash": "0x9876543210abcdef9876543210abcdef9876543210abcdef9876543210abcdef",
+      "timestamp": "2025-01-29T09:45:00.000Z",
+      "status": "active",
+      "potentialPayout": 392
+    }
+  }
+]

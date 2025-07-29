@@ -1,0 +1,50 @@
+[
+  {
+    "id": "market_btc_70k_2025",
+    "title": "BTC > $70,000 by End of January 2025",
+    "description": "Will Bitcoin price exceed $70,000 USD by January 31, 2025?",
+    "chain": "Flare",
+    "chainId": "flare",
+    "expiry": "2025-01-31T23:59:59.000Z",
+    "yesPool": 15420,
+    "noPool": 8960,
+    "isActive": true,
+    "isResolved": false,
+    "resolution": null,
+    "oracleSource": "Flare FTSO",
+    "createdAt": "2025-01-28T10:00:00.000Z",
+    "createdBy": "admin"
+  },
+  {
+    "id": "market_eth_3500_today",
+    "title": "ETH > $3,500 Today",
+    "description": "Will Ethereum price exceed $3,500 USD by end of today?",
+    "chain": "Ethereum",
+    "chainId": "ethereum",
+    "expiry": "2025-01-29T23:59:59.000Z",
+    "yesPool": 8750,
+    "noPool": 12340,
+    "isActive": true,
+    "isResolved": false,
+    "resolution": null,
+    "oracleSource": "Chainlink",
+    "createdAt": "2025-01-29T06:00:00.000Z",
+    "createdBy": "admin"
+  },
+  {
+    "id": "market_polygon_matic_2_feb",
+    "title": "MATIC > $2.00 by February",
+    "description": "Will Polygon MATIC token exceed $2.00 USD by February 1, 2025?",
+    "chain": "Polygon",
+    "chainId": "polygon",
+    "expiry": "2025-02-01T23:59:59.000Z",
+    "yesPool": 5690,
+    "noPool": 4210,
+    "isActive": true,
+    "isResolved": false,
+    "resolution": null,
+    "oracleSource": "Chainlink",
+    "createdAt": "2025-01-25T14:30:00.000Z",
+    "createdBy": "admin"
+  }
+]

@@ -1,0 +1,149 @@
+{
+  "supportedChains": [
+    {
+      "id": "flare",
+      "name": "Flare Network",
+      "symbol": "FLR",
+      "emoji": "🔥",
+      "rpc": "https://flare-api.flare.network/ext/bc/C/rpc",
+      "chainId": 14,
+      "nativeCurrency": {
+        "name": "Flare",
+        "symbol": "FLR",
+        "decimals": 18
+      },
+      "blockExplorer": "https://flare-explorer.flare.network",
+      "oracle": "Flare FTSO",
+      "gasless": false,
+      "contracts": {
+        "marketFactory": "0x1234567890123456789012345678901234567890",
+        "oracleResolver": "0x2345678901234567890123456789012345678901",
+        "usdtToken": "0x3456789012345678901234567890123456789012"
+      }
+    },
+    {
+      "id": "ethereum",
+      "name": "Ethereum",
+      "symbol": "ETH",
+      "emoji": "⟠",
+      "rpc": "https://eth-mainnet.g.alchemy.com/v2/api-key",
+      "chainId": 1,
+      "nativeCurrency": {
+        "name": "Ether",
+        "symbol": "ETH",
+        "decimals": 18
+      },
+      "blockExplorer": "https://etherscan.io",
+      "oracle": "Chainlink",
+      "gasless": false,
+      "contracts": {
+        "marketFactory": "0x4567890123456789012345678901234567890123",
+        "oracleResolver": "0x5678901234567890123456789012345678901234",
+        "usdtToken": "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+      }
+    },
+    {
+      "id": "polygon",
+      "name": "Polygon",
+      "symbol": "MATIC",
+      "emoji": "💜",
+      "rpc": "https://polygon-rpc.com",
+      "chainId": 137,
+      "nativeCurrency": {
+        "name": "MATIC",
+        "symbol": "MATIC",
+        "decimals": 18
+      },
+      "blockExplorer": "https://polygonscan.com",
+      "oracle": "Chainlink",
+      "gasless": true,
+      "contracts": {
+        "marketFactory": "0x6789012345678901234567890123456789012345",
+        "oracleResolver": "0x7890123456789012345678901234567890123456",
+        "usdtToken": "0xc2132D05D31c914a87C6611C10748AEb04B58e8F"
+      }
+    },
+    {
+      "id": "arbitrum",
+      "name": "Arbitrum One",
+      "symbol": "ETH",
+      "emoji": "🔵",
+      "rpc": "https://arb1.arbitrum.io/rpc",
+      "chainId": 42161,
+      "nativeCurrency": {
+        "name": "Ether",
+        "symbol": "ETH",
+        "decimals": 18
+      },
+      "blockExplorer": "https://arbiscan.io",
+      "oracle": "Chainlink",
+      "gasless": true,
+      "contracts": {
+        "marketFactory": "0x8901234567890123456789012345678901234567",
+        "oracleResolver": "0x9012345678901234567890123456789012345678",
+        "usdtToken": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9"
+      }
+    },
+    {
+      "id": "optimism",
+      "name": "Optimism",
+      "symbol": "ETH",
+      "emoji": "🔴",
+      "rpc": "https://mainnet.optimism.io",
+      "chainId": 10,
+      "nativeCurrency": {
+        "name": "Ether",
+        "symbol": "ETH",
+        "decimals": 18
+      },
+      "blockExplorer": "https://optimistic.etherscan.io",
+      "oracle": "Chainlink",
+      "gasless": true,
+      "contracts": {
+        "marketFactory": "0x0123456789012345678901234567890123456789",
+        "oracleResolver": "0x1234567890123456789012345678901234567890",
+        "usdtToken": "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58"
+      }
+    },
+    {
+      "id": "base",
+      "name": "Base",
+      "symbol": "ETH",
+      "emoji": "🔷",
+      "rpc": "https://mainnet.base.org",
+      "chainId": 8453,
+      "nativeCurrency": {
+        "name": "Ether",
+        "symbol": "ETH",
+        "decimals": 18
+      },
+      "blockExplorer": "https://basescan.org",
+      "oracle": "Chainlink",
+      "gasless": false,
+      "contracts": {
+        "marketFactory": "0x2345678901234567890123456789012345678901",
+        "oracleResolver": "0x3456789012345678901234567890123456789012",
+        "usdtToken": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+      }
+    }
+  ],
+  "oracleFeeds": {
+    "flare": {
+      "provider": "Flare FTSO",
+      "feeds": [
+        {"id": "0x01464c522f55534400000000000000000000000000", "pair": "FLR/USD"},
+        {"id": "0x014254432f55534400000000000000000000000000", "pair": "BTC/USD"},
+        {"id": "0x014554482f55534400000000000000000000000000", "pair": "ETH/USD"},
+        {"id": "0x01424e422f55534400000000000000000000000000", "pair": "BNB/USD"}
+      ]
+    },
+    "ethereum": {
+      "provider": "Chainlink",
+      "feeds": [
+        {"address": "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419", "pair": "ETH/USD"},
+        {"address": "0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c", "pair": "BTC/USD"},
+        {"address": "0x14e613AC84a31f709eadbdF89C6CC390fDc9540A", "pair": "BNB/USD"}
+      ]
+    }
+  }
+}
