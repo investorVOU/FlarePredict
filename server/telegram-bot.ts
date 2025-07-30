@@ -471,9 +471,9 @@ Ready to start predicting? 🚀
           );
         }
       } catch (error) {
-        console.error('❌ Wallet connection failed:', error);
-        await ctx.editMessageText('❌ Wallet connection failed. Please try again.');
-      }
+          console.error('❌ Wallet connection failed:', error);
+          await ctx.editMessageText('❌ Wallet connection failed. Please try again.');
+        }
       } catch (error) {
         console.error('Bet confirmation error:', error);
         ctx.reply('❌ Error confirming bet. Please try again.');
